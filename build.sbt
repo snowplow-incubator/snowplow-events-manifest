@@ -15,7 +15,7 @@ lazy val root = project
   .settings(
     organization := "com.snowplowanalytics",
     name := "snowplow-events-manifest",
-    version := "0.1.0",
+    version := "0.1.0-M1",
     description := "Identifying duplicate events across batches",
     scalaVersion := "2.11.12",
     scalacOptions := BuildSettings.compilerOptions,
