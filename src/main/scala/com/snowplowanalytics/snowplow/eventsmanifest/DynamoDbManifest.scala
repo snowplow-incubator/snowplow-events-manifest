@@ -13,7 +13,8 @@
 package com.snowplowanalytics.snowplow.eventsmanifest
 
 // java.time
-import java.time.ZonedDateTime
+import java.time.Instant
+import java.util.UUID
 
 // Scala
 import scala.collection.JavaConverters._
@@ -46,13 +47,13 @@ case class DynamoDbManifest(client: AmazonDynamoDB, table: String) extends Event
     * @return true if the event is successfully stored in the table,
     *         false if both eventId and fingerprint are already in the table
     */
-  def put(eventId: String, eventFingerprint: String, etlTstamp: String): Boolean = {
-    val etl: Int = (ZonedDateTime.parse(etlTstamp, EventsManifest.RedshiftTstampFormatter).toInstant.toEpochMilli / 1000).toInt
+  def put(eventId: UUID, eventFingerprint: String, etlTstamp: Instant): Boolean = {
+    val etl: Int = (etlTstamp.toEpochMilli / 1000).toInt
     val ttl = etl + 180 * 24 * 60 * 60
     val putRequest = putRequestDummy
       .withExpressionAttributeValues(Map(":tst" -> new AttributeValue().withN(etl.toString)).asJava)
       .withItem(attributeValues(List(
-        EventIdColumn -> eventId,
+        EventIdColumn -> eventId.toString,
         FingerprintColumn -> eventFingerprint,
         EtlTstampColumn -> etl,
         TimeToLiveColumn -> ttl)
