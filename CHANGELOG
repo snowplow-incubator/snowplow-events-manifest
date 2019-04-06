@@ -1,3 +1,13 @@
+Version 0.2.0 (2019-08-13)
+--------------------------
+Switch to OpenJDK (#14)
+Add Scala 2.12 support (#10)
+Bump iglu-scala-client to 0.6.0 (#7)
+Bump aws-java-sdk to 1.11.533 (#8)
+Extend copyright notice to 2019 (#9)
+Make EventsManifest API type-safe (#12)
+Make Amazon DynamoDB support backward comaptible with 1-0-0 (#13)
+
 Version 0.1.0 (2019-01-15)
 --------------------------
 Initial release
