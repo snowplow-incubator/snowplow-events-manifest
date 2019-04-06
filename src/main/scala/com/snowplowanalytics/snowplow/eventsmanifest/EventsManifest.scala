@@ -12,9 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.eventsmanifest
 
-// java.time
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import java.time.Instant
+import java.util.UUID
 
 // Scala
 import scala.util.control.NonFatal
@@ -24,10 +23,10 @@ import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 
 // This library
-import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbConfig.CredentialsAuth
+import com.snowplowanalytics.snowplow.eventsmanifest.EventsManifestConfig.DynamoDb.Credentials
 
 /**
-  * Common trait for event duplicate storages, storing a triple of event attributes
+  * Common trait for events manifest storages, storing a triple of event attributes
   * that enable cross-batch event deduplication.
   * Currently implemented by `DynamoDbStorage`.
   */
@@ -42,7 +41,7 @@ trait EventsManifest {
     * @return true if the event is successfully stored in the table,
     *         false if both eventId and fingerprint are already in the table
     */
-  def put(eventId: String, eventFingerprint: String, etlTstamp: String): Boolean
+  def put(eventId: UUID, eventFingerprint: String, etlTstamp: Instant): Boolean
 }
 
 
@@ -50,16 +49,6 @@ trait EventsManifest {
   * Companion object containing utility fields and methods.
   */
 object EventsManifest {
-
-  /**
-    * Trait to hold all possible types for events manifest configs.
-    */
-  trait EventsManifestConfig
-
-  /**
-    * Default datetime format (etl_tstamp, dvce_sent_tstamp, dvce_created_tstamp)
-    */
-  val RedshiftTstampFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneId.of("UTC"))
 
   /**
     * Universal constructor that initializes a `DuplicateStorage` instance
@@ -70,17 +59,17 @@ object EventsManifest {
     */
   def initStorage(config: EventsManifestConfig): Either[String, EventsManifest] =
     config match {
-      case DynamoDbConfig(_, auth, awsRegion, tableName) =>
+      case EventsManifestConfig.DynamoDb(_, auth, awsRegion, tableName) =>
         try {
           val client = auth match {
-            case Some(CredentialsAuth(accessKeyId, secretAccessKey)) =>
+            case Some(Credentials(accessKeyId, secretAccessKey)) =>
               val credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey)
               AmazonDynamoDBClientBuilder
                 .standard()
                 .withRegion(awsRegion)
                 .withCredentials(new AWSStaticCredentialsProvider(credentials))
                 .build()
-            case _ =>
+            case None =>
               AmazonDynamoDBClientBuilder
                 .standard()
                 .withRegion(awsRegion)

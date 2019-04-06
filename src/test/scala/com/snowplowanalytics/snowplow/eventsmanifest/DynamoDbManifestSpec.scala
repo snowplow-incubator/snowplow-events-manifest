@@ -12,6 +12,10 @@
  */
 package com.snowplowanalytics.snowplow.eventsmanifest
 
+import java.time.{Instant, ZoneId, ZonedDateTime}
+import java.time.format.DateTimeFormatter
+import java.util.UUID
+
 // scala
 import scala.collection.JavaConverters._
 
@@ -25,11 +29,18 @@ import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBu
 import org.specs2.mutable.Specification
 
 // This library
-import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbConfig.CredentialsAuth
+import com.snowplowanalytics.snowplow.eventsmanifest.EventsManifestConfig.DynamoDb
 import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbManifest._
 
 class DynamoDbManifestSpec extends Specification {
-  val config = DynamoDbConfig("local", Some(CredentialsAuth("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
+
+  private val TstampFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneId.of("UTC"))
+
+  def parseTstamp(str: String): Instant =
+    ZonedDateTime.parse(str, TstampFormatter).toInstant
+
+  val config = DynamoDb("local", Some(DynamoDb.Credentials("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
   val credentials = new BasicAWSCredentials(config.auth.get.accessKeyId, config.auth.get.secretAccessKey)
   val client: AmazonDynamoDB = AmazonDynamoDBClientBuilder
     .standard()
@@ -51,23 +62,38 @@ class DynamoDbManifestSpec extends Specification {
     val dynamoDbStorage = new DynamoDbManifest(client, config.dynamodbTable)
 
     "successfully push a new event" in {
-      dynamoDbStorage.put("c6ef3124-b53a-4b13-a233-0088f79dcbcb", "AADCE520E20C2899F4CED228A79A3083", "2017-01-26 00:01:25.292") should beTrue
+      dynamoDbStorage.put(
+        UUID.fromString("c6ef3124-b53a-4b13-a233-0088f79dcbcb"),
+        "AADCE520E20C2899F4CED228A79A3083",
+        parseTstamp("2017-01-26 00:01:25.292")) should beTrue
     }
 
     "overwrite event with identical id/fingerprint and matching timestamp" in {
-      dynamoDbStorage.put("c6ef3124-b53a-4b13-a233-0088f79dcbcb", "AADCE520E20C2899F4CED228A79A3083", "2017-01-26 00:01:25.292") should beTrue
+      dynamoDbStorage.put(
+        UUID.fromString("c6ef3124-b53a-4b13-a233-0088f79dcbcb"),
+        "AADCE520E20C2899F4CED228A79A3083",
+        parseTstamp("2017-01-26 00:01:25.292")) should beTrue
     }
 
     "NOT overwrite event with identical id/fingerprint but different timestamp" in {
-      dynamoDbStorage.put("c6ef3124-b53a-4b13-a233-0088f79dcbcb", "AADCE520E20C2899F4CED228A79A3083", "2017-01-26 00:02:25.292") should beFalse
+      dynamoDbStorage.put(
+        UUID.fromString("c6ef3124-b53a-4b13-a233-0088f79dcbcb"),
+        "AADCE520E20C2899F4CED228A79A3083",
+        parseTstamp("2017-01-26 00:02:25.292")) should beFalse
     }
 
     "NOT overwrite event with identical id but different fingerprint/timestamp" in {
-      dynamoDbStorage.put("c6ef3124-b53a-4b13-a233-0088f79dcbcb", "15A65BB354B1265A775FC3C60AAD5E58", "2017-01-26 00:02:25.292") should beTrue
+      dynamoDbStorage.put(
+        UUID.fromString("c6ef3124-b53a-4b13-a233-0088f79dcbcb"),
+        "15A65BB354B1265A775FC3C60AAD5E58",
+        parseTstamp("2017-01-26 00:02:25.292")) should beTrue
     }
 
     "NOT overwrite event with identical fingerprint but different id/timestamp" in {
-      dynamoDbStorage.put("d7f5fa2f-3b3a-4c97-a030-8e05d9f40b0a", "AADCE520E20C2899F4CED228A79A3083", "2017-01-26 00:02:25.292") should beTrue
+      dynamoDbStorage.put(
+        UUID.fromString("d7f5fa2f-3b3a-4c97-a030-8e05d9f40b0a"),
+        "AADCE520E20C2899F4CED228A79A3083",
+        parseTstamp("2017-01-26 00:02:25.292")) should beTrue
     }
 
     "correctly populate the manifest" in {
