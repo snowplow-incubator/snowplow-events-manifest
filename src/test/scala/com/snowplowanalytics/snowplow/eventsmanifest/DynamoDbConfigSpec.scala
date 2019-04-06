@@ -15,48 +15,15 @@ package com.snowplowanalytics.snowplow.eventsmanifest
 // Commons
 import org.apache.commons.codec.binary.Base64
 
-// Scalaz
-import scalaz._
-import Scalaz._
-
-// json4s
-import org.json4s.jackson.parseJson
-import com.github.fge.jsonschema.core.report.ProcessingMessage
-
-// Iglu
-import com.snowplowanalytics.iglu.client.Resolver
-
 // Specs2
 import org.specs2.mutable.Specification
 
 // This library
 import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbConfig.CredentialsAuth
 
-class DynamoDbConfigSpec extends Specification {
-  lazy val igluResolver: Resolver = {
-    val jsonConfig =
-      s"""|{
-          |  "schema": "iglu:com.snowplowanalytics.iglu/resolver-config/jsonschema/1-0-0",
-          |  "data": {
-          |    "cacheSize": 500,
-          |    "repositories": [
-          |      {
-          |        "name": "Iglu Central",
-          |        "priority": 0,
-          |        "vendorPrefixes": [ "com.snowplowanalytics" ],
-          |        "connection": {
-          |          "http": {
-          |            "uri": "http://iglucentral.com"
-          |          }
-          |        }
-          |      }
-          |    ]
-          |  }
-          |}""".stripMargin
-    val parsedConfig = parseJson(jsonConfig)
-    Resolver.parse(parsedConfig).toOption.get
-  }
+import SpecHelpers._
 
+class DynamoDbConfigSpec extends Specification {
   lazy val goodConfig: String = {
     val jsonConfig =
       s"""|{
@@ -98,31 +65,14 @@ class DynamoDbConfigSpec extends Specification {
     val goodConfigExpected = DynamoDbConfig("local", Some(CredentialsAuth("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
     val missingCredentialsConfigExpected = DynamoDbConfig("local", None, "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
 
-    "return Success(Some) if the config is valid" in {
-      val config = DynamoDbConfig.extract(Some(goodConfig).success, igluResolver.success)
-      config mustEqual Some(goodConfigExpected).success
-    }
-
-    "return Success(None) if the config was empty" in {
-      val config = DynamoDbConfig.extract(None.success, igluResolver.success)
-      config mustEqual None.success
-    }
-
-    "return Failure if the config was invalid" in {
-      val configError = new ProcessingMessage().setMessage("config")
-      val resolverError = new ProcessingMessage().setMessage("resolver")
-      val config = DynamoDbConfig.extract(configError.failure, NonEmptyList(resolverError).failure)
-      config mustEqual NonEmptyList(configError, resolverError).failure
-    }
-
     "work with unwrapped configs/resolvers" in {
-      val config = DynamoDbConfig.extractFromBase64(goodConfig, igluResolver)
-      config mustEqual goodConfigExpected.success
+      val config = DynamoDbConfig.extractFromBase64(goodConfig, igluResolver).value
+      config must beRight(goodConfigExpected)
     }
 
     "support nullable AWS credentials" in {
-      val config = DynamoDbConfig.extractFromBase64(missingCredentialsConfig, igluResolver)
-      config mustEqual missingCredentialsConfigExpected.success
+      val config = DynamoDbConfig.extractFromBase64(missingCredentialsConfig, igluResolver).value
+      config must beRight(missingCredentialsConfigExpected)
     }
   }
 }

@@ -15,26 +15,26 @@ package com.snowplowanalytics.snowplow.eventsmanifest
 // Java
 import java.nio.charset.StandardCharsets.UTF_8
 
-// Scala
-import scala.util.control.NonFatal
+import cats.data.EitherT
+import com.snowplowanalytics.iglu.client.resolver.registries.RegistryLookup
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.implicits._
 
-// Scalaz
-import scalaz._
-import Scalaz._
+// cats
+import cats.Monad
+import cats.syntax.either._
+import cats.syntax.show._
+import cats.effect.Clock
 
 // JSON
-import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
-import com.github.fge.jsonschema.core.report.ProcessingMessage
-import org.json4s.jackson.JsonMethods._
-import org.json4s.{DefaultFormats, JValue}
+import io.circe.{ Json, Decoder }
+import io.circe.parser.parse
 
 // Apache Commons Codec
 import org.apache.commons.codec.binary.Base64
 
 // Iglu
-import com.snowplowanalytics.iglu.client.Resolver
-import com.snowplowanalytics.iglu.client.validation.ProcessingMessageMethods._
-import com.snowplowanalytics.iglu.client.validation.ValidatableJsonMethods._
+import com.snowplowanalytics.iglu.client.Client
 
 // This library
 import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbConfig.CredentialsAuth
@@ -62,66 +62,53 @@ object DynamoDbConfig {
     */
   case class CredentialsAuth(accessKeyId: String, secretAccessKey: String)
 
-  implicit val formats = DefaultFormats
-
-  /**
-    * Convert a base64-encoded JSON String into a JsonNode.
-    *
-    * @param str   base64-encoded JSON
-    * @param field Arbitrary human-readable field name
-    */
-  private def base64ToJsonNode(str: String, field: String): Validation[ProcessingMessage, JsonNode] =
-    try {
-      val decodedBytes = new Base64(true).decode(str) // Decode Base64 to JSON String
-      val raw = new String(decodedBytes, UTF_8) // Must specify charset (EMR uses US_ASCII)
-      Option(new ObjectMapper().readTree(raw)) // Convert JSON String to JsonNode
-        .toSuccess(s"Field [$field]: invalid JSON [$raw] with parsing error: mapping resulted in null")
-        .toProcessingMessage
-    } catch {
-      case NonFatal(e) =>
-        s"Field [$field]: exception converting [$str] to JsonNode: [${e.getMessage}]"
-          .fail
-          .toProcessingMessage
-    }
-
-
-  /**
-    * Extract a `DynamoDbConfig` from a base64-encoded self-describing JSON.
-    *
-    * @param base64Config base64-encoded self-describing JSON with an `amazon_dynamodb_config` instance
-    * @param igluResolver Iglu-resolver to check that the JSON instance in `base64` is valid
-    * @return Success(None) if the config was not extracted from the `Option`,
-    *         Failure if the JSON was invalid or didn't correspond to a `DynamoDbConfig`,
-    *         Success(DynamoDbConfig) otherwise
-    */
-  def extract(base64Config: Validation[ProcessingMessage, Option[String]], igluResolver: ValidationNel[ProcessingMessage, Resolver]): ValidationNel[ProcessingMessage, Option[DynamoDbConfig]] = {
-    val nestedValidation = (base64Config.toValidationNel |@| igluResolver) { (config: Option[String], resolver: Resolver) =>
-      config match {
-        case Some(encodedConfig) =>
-          for {config <- extractFromBase64(encodedConfig, resolver)} yield config.some
-        case None => none.successNel
-      }
-    }
-
-    nestedValidation.flatMap(identity) // Combine nested validations
-  }
-
   /**
     * Extract `DynamoDbConfig` from a base64-encoded self-describing JSON,
     * also checking that it is valid.
     *
     * @param base64Config base64-encoded self-describing JSON with an `amazon_dynamodb_config` instance
-    * @param igluResolver Iglu-resolver to check that the JSON instance in `base64` is valid
+    * @param igluClient Iglu-resolver to check that the JSON instance in `base64` is valid
     * @return Failure if the JSON was invalid or didn't correspond to a `DynamoDbConfig`,
     *         Success(DynamoDbConfig) otherwise
     */
-  def extractFromBase64(base64Config: String, igluResolver: Resolver): ValidationNel[ProcessingMessage, DynamoDbConfig] = {
-    base64ToJsonNode(base64Config, "events manifest") // Decode base64
-      .toValidationNel // Fix container type
-      .flatMap { node: JsonNode => node.validate(dataOnly = true)(igluResolver) } // Validate against schema
-      .map(fromJsonNode) // Transform to JValue
-      .flatMap { json: JValue => // Extract config instance
-      Validation.fromTryCatch(json.extract[DynamoDbConfig]).leftMap(e => toProcMsg(e.getMessage)).toValidationNel
+  // TODO: test invalid base64
+  def extractFromBase64[F[_]: Monad: RegistryLookup: Clock]
+                       (base64Config: String, igluClient: Client[F, Json]): EitherT[F, String, DynamoDbConfig] =
+    for {
+      json    <- base64ToJson(base64Config).toEitherT[F]
+      payload <- SelfDescribingData.parse(json).toEitherT[F].leftMap(c => s"Config JSON is not self-describing, $c")
+      _       <- igluClient.check(payload).leftMap(_.toString)
+      config  <- payload.data.as[DynamoDbConfig].toEitherT[F].leftMap(_.show)
+    } yield config
+
+  implicit val credentialsAuthDecoder: Decoder[CredentialsAuth] =
+    Decoder.instance { cursor =>
+      for {
+        accessKeyId <- cursor.downField("accessKeyId").as[String]
+        secretAccessKey <- cursor.downField("secretAccessKey").as[String]
+      } yield CredentialsAuth(accessKeyId, secretAccessKey)
     }
-  }
+
+  implicit val dynamoDbConfigCirceDecoder: Decoder[DynamoDbConfig] =
+    Decoder.instance { cursor =>
+      for {
+        name <- cursor.downField("name").as[String]
+        creds <- cursor.downField("auth").as[Option[CredentialsAuth]]
+        region <- cursor.downField("awsRegion").as[String]
+        table <- cursor.downField("dynamodbTable").as[String]
+      } yield DynamoDbConfig(name, creds, region, table)
+    }
+
+
+  /** Convert a base64-encoded JSON String into a JSON */
+  private def base64ToJson(str: String): Either[String, Json] =
+    for {
+      str <- Either.catchNonFatal {
+        val decodedBytes = new Base64(true).decode(str) // Decode Base64 to JSON String
+        new String(decodedBytes, UTF_8) // Must specify charset (EMR uses US_ASCII)
+      }.leftMap(e => Option(e.getMessage).getOrElse(e.toString))
+      json <- parse(str).leftMap(_.show)
+    } yield json
+
+
 }

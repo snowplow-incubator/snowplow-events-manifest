@@ -14,12 +14,13 @@ import sbt._
 
 object Dependencies {
   // Scala
-  val igluClient    = "com.snowplowanalytics" %% "iglu-scala-client"      % "0.5.0"
+  val igluClient    = "com.snowplowanalytics" %% "iglu-scala-client"      % "0.6.0-M3"
 
   // Java
   val dynamodb      = "com.amazonaws"         % "aws-java-sdk-dynamodb"   % "1.11.442"
 
   // Scala (test only)
+  val circeLiteral  = "io.circe"              %% "circe-literal"          % "0.11.1" % "test"
   val scalaCheck    = "org.scalacheck"        %% "scalacheck"             % "1.14.0" % "test"
   val specs2        = "org.specs2"            %% "specs2-core"            % "4.3.4"  % "test"
 }
