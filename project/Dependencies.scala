@@ -17,7 +17,7 @@ object Dependencies {
   val igluClient    = "com.snowplowanalytics" %% "iglu-scala-client"      % "0.6.0-M3"
 
   // Java
-  val dynamodb      = "com.amazonaws"         % "aws-java-sdk-dynamodb"   % "1.11.442"
+  val dynamodb      = "com.amazonaws"         % "aws-java-sdk-dynamodb"   % "1.11.533"
 
   // Scala (test only)
   val circeLiteral  = "io.circe"              %% "circe-literal"          % "0.11.1" % "test"
