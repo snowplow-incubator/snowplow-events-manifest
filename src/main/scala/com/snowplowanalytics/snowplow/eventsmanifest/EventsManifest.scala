@@ -19,19 +19,9 @@ import java.time.format.DateTimeFormatter
 // Scala
 import scala.util.control.NonFatal
 
-// Scalaz
-import scalaz._
-import Scalaz._
-
-// JSON Schema
-import com.github.fge.jsonschema.core.report.ProcessingMessage
-
 // AWS
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
-
-// Iglu
-import com.snowplowanalytics.iglu.client.validation.ProcessingMessageMethods._
 
 // This library
 import com.snowplowanalytics.snowplow.eventsmanifest.DynamoDbConfig.CredentialsAuth
@@ -78,7 +68,7 @@ object EventsManifest {
     * @param config Configuration required to initialize a `DuplicateStorage`
     * @return a valid `DuplicateStorage` instance if no exceptions were thrown
     */
-  def initStorage(config: EventsManifestConfig): Validation[ProcessingMessage, EventsManifest] =
+  def initStorage(config: EventsManifestConfig): Either[String, EventsManifest] =
     config match {
       case DynamoDbConfig(_, auth, awsRegion, tableName) =>
         try {
@@ -97,10 +87,10 @@ object EventsManifest {
                 .build()
           }
           val table = DynamoDbManifest.checkTable(client, tableName)
-          new DynamoDbManifest(client, table).success
+          Right(new DynamoDbManifest(client, table))
         } catch {
           case NonFatal(e) =>
-            toProcMsg("Cannot initialize duplicate storage:\n" + Option(e.getMessage).getOrElse("")).failure
+            Left("Cannot initialize duplicate storage\n" + Option(e.getMessage).getOrElse(""))
         }
     }
 }

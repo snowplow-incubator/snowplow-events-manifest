@@ -23,6 +23,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       Dependencies.igluClient,
       Dependencies.dynamodb,
+      Dependencies.circeLiteral,
       Dependencies.scalaCheck,
       Dependencies.specs2
     )
