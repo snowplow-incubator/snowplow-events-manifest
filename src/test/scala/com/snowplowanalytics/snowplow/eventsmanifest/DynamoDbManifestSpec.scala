@@ -44,7 +44,7 @@ class DynamoDbManifestSpec extends Specification {
     }
 
     "create the dedupe table and confirm that it exists" in {
-      val tableDescription = DynamoDbManifest.createTable(client, config.dynamodbTable, None, None)
+      val _ = DynamoDbManifest.createTable(client, config.dynamodbTable, None, None)
       DynamoDbManifest.checkTable(client, config.dynamodbTable) mustEqual config.dynamodbTable
     }
 

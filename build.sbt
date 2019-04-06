@@ -17,8 +17,19 @@ lazy val root = project
     name := "snowplow-events-manifest",
     version := "0.1.0",
     description := "Identifying duplicate events across batches",
-    scalaVersion := "2.11.12",
-    scalacOptions := BuildSettings.compilerOptions,
+    scalaVersion := "2.12.8",
+    crossScalaVersions := Seq("2.11.12", "2.12.8"),
+    scalacOptions := BuildSettings.compilerOptions ++ (if (scalaVersion.value.startsWith("2.12")) Seq(
+      "-Ywarn-unused:privates",   // Warn if a private member is unused.
+      "-Ywarn-unused:patvars",    // Warn if a variable bound in a pattern is unused.
+      "-Ywarn-unused:params",     // Warn if a value parameter is unused.
+      "-Ywarn-unused:locals",     // Warn if a local definition is unused.
+      "-Ywarn-unused:imports",    // Warn if an import selector is not referenced.
+      "-Ywarn-unused:implicits",  // Warn if an implicit parameter is unused.
+      "-Xlint:constant",          // Evaluation of a constant arithmetic expression results in an error.
+      "-Ywarn-extra-implicit"     // Warn when more than one implicit parameter section is defined.
+    ) else Seq()) ,
+    scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"),
     javacOptions := BuildSettings.javaCompilerOptions,
     libraryDependencies ++= Seq(
       Dependencies.igluClient,
