@@ -3,7 +3,7 @@
 [![Build Status](https://api.travis-ci.org/snowplow-incubator/snowplow-events-manifest.svg)](https://travis-ci.org/snowplow-incubator/snowplow-events-manifest)
 [![Maven Central](https://img.shields.io/maven-central/v/com.snowplowanalytics/snowplow-events-manifest_2.12.svg)](https://maven-badges.herokuapp.com/maven-central/com.snowplowanalytics/snowplow-events-manifest_2.12)
 [![codecov](https://codecov.io/gh/snowplow-incubator/snowplow-events-manifest/branch/master/graph/badge.svg)](https://codecov.io/gh/snowplow-incubator/snowplow-events-manifest)
-[![Join the chat at https://gitter.im/snowplow-incubator/snowplow-events-manifest](https://badges.gitter.im/snowplow-incubator/snowplow-events-manifest.svg)](https://gitter.im/snowplow-incubator/snowplow-events-manifest?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/snowplow/snowplow](https://badges.gitter.im/snowplow/snowplow.svg)](https://gitter.im/snowplow/snowplow?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 A standalone Scala library that contains logic used for cross-batch natural deduplication of Snowplow events, responsible for deduplication in our AWS-based pipelines. It works by extracting the `event_id` and `event_fingerprint` of an event, as well as `etl_tstamp` which identifies a single batch, then storing these properties in a DynamoDB table. Duplicate events with the same ID and fingerprint that were seen in previous batches are silently dropped from the Snowflake Transformer output.
 
