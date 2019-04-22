@@ -59,7 +59,7 @@ object EventsManifest {
     */
   def initStorage(config: EventsManifestConfig): Either[String, EventsManifest] =
     config match {
-      case EventsManifestConfig.DynamoDb(_, auth, awsRegion, tableName) =>
+      case EventsManifestConfig.DynamoDb(_, _, auth, awsRegion, tableName) =>
         try {
           val client = auth match {
             case Some(Credentials(accessKeyId, secretAccessKey)) =>

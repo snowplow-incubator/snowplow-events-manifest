@@ -40,7 +40,7 @@ class DynamoDbManifestSpec extends Specification {
   def parseTstamp(str: String): Instant =
     ZonedDateTime.parse(str, TstampFormatter).toInstant
 
-  val config = DynamoDb("local", Some(DynamoDb.Credentials("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
+  val config = DynamoDb(None, "local", Some(DynamoDb.Credentials("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
   val credentials = new BasicAWSCredentials(config.auth.get.accessKeyId, config.auth.get.secretAccessKey)
   val client: AmazonDynamoDB = AmazonDynamoDBClientBuilder
     .standard()
