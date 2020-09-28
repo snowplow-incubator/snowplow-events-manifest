@@ -17,7 +17,7 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 // scala
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 // AWS
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
