@@ -17,7 +17,7 @@ import java.time.Instant
 import java.util.UUID
 
 // Scala
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 // AWS
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
@@ -164,7 +164,10 @@ object DynamoDbManifest {
     * @return Java-compatible Hash-map
     */
   def attributeValues(attributes: Seq[(String, Any)]): java.util.Map[String, AttributeValue] =
-    attributes.toMap.mapValues(asAttributeValue).asJava
+    attributes
+      .map { case (k, v) => (k, asAttributeValue(v)) }
+      .toMap
+      .asJava
 
   /**
     * Convert **only** strings and numbers to DynamoDB-compatible attribute data.
