@@ -1,3 +1,8 @@
+Version 0.3.0 (2020-09-29)
+--------------------------
+Bump aws-java-sdk-dynamodb to 1.11.870 (#16)
+Add Scala 2.13 support (#15)
+
 Version 0.2.0 (2019-08-13)
 --------------------------
 Switch to OpenJDK (#14)
