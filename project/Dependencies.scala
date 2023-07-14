@@ -20,7 +20,7 @@ object Dependencies {
   val dynamodb      = "com.amazonaws"         % "aws-java-sdk-dynamodb"   % "1.11.870"
 
   // Scala (test only)
-  val circeLiteral  = "io.circe"              %% "circe-literal"          % "0.13.0"  % Test
+  val circeLiteral  = "io.circe"              %% "circe-literal"          % "0.14.1"  % Test
   val scalaCheck    = "org.scalacheck"        %% "scalacheck"             % "1.14.0"  % Test
   val specs2        = "org.specs2"            %% "specs2-core"            % "4.10.3"  % Test
 }
