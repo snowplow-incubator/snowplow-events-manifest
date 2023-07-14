@@ -14,7 +14,7 @@ import sbt._
 
 object Dependencies {
   // Scala
-  val igluClient    = "com.snowplowanalytics" %% "iglu-scala-client"      % "1.0.2"
+  val igluClient    = "com.snowplowanalytics" %% "iglu-scala-client"      % "3.0.0"
 
   // Java
   val dynamodb      = "com.amazonaws"         % "aws-java-sdk-dynamodb"   % "1.11.870"

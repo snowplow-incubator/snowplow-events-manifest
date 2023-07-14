@@ -13,16 +13,13 @@
 package com.snowplowanalytics.snowplow.eventsmanifest
 
 import java.util.concurrent.TimeUnit
-
-import cats.Id
+import cats.{Applicative, Id}
 import cats.effect.Clock
-
 import io.circe.Json
 import io.circe.literal._
 
-import scala.concurrent.duration.TimeUnit
+import scala.concurrent.duration.FiniteDuration
 
-// Iglu
 import com.snowplowanalytics.iglu.client.Client
 
 object SpecHelpers {
@@ -50,10 +47,16 @@ object SpecHelpers {
   }
 
   implicit val idClock: Clock[Id] = new Clock[Id] {
-    final def realTime(unit: TimeUnit): Id[Long] =
-      unit.convert(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
+    override def applicative: Applicative[Id] = new Applicative[Id] {
+      override def pure[A](x: A): Id[A] = x
 
-    final def monotonic(unit: TimeUnit): Id[Long] =
-      unit.convert(System.nanoTime(), TimeUnit.NANOSECONDS)
+      override def ap[A, B](ff: Id[A => B])(fa: Id[A]): Id[B] = ff(fa)
+    }
+
+    override def realTime: Id[FiniteDuration] =
+      FiniteDuration(System.currentTimeMillis(), TimeUnit.MILLISECONDS)
+
+    override def monotonic: Id[FiniteDuration] =
+      FiniteDuration(System.nanoTime(), TimeUnit.NANOSECONDS)
   }
 }

@@ -19,6 +19,8 @@ import io.circe.literal._
 // Specs2
 import org.specs2.mutable.Specification
 
+import com.snowplowanalytics.iglu.client.resolver.registries.JavaNetRegistryLookup._
+
 // This library
 import com.snowplowanalytics.snowplow.eventsmanifest.EventsManifestConfig.DynamoDb
 
