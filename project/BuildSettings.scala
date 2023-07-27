@@ -48,8 +48,8 @@ object BuildSettings {
   )
 
   lazy val javaCompilerOptions = Seq(
-    "-source", "1.8",
-    "-target", "1.8"
+    "-source", "1.11",
+    "-target", "1.11"
   )
 
   lazy val coverageSettings = Seq(
