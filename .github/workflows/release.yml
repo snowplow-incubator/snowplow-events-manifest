@@ -1,0 +1,21 @@
+name: RELEASE
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: coursier/cache-action@v6
+
+      - name: Deploy snowplow-events-manifest to Maven Central
+        run: sbt ci-release
+        env:
+          SONATYPE_USERNAME: snowplow
+          SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
+          PGP_PASSPHRASE: ${{ secrets.SONA_PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.SONA_PGP_SECRET }}

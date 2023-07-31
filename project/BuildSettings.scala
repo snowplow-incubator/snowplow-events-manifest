@@ -13,47 +13,45 @@
 import sbt._
 import Keys._
 
-// Bintray plugin
-import bintray.BintrayPlugin._
-import bintray.BintrayKeys._
-
-// Scoverage
-import scoverage.ScoverageKeys._
+// dynver plugin
+import sbtdynver.DynVerPlugin.autoImport._
 
 // DynamoDB Local
 import com.localytics.sbt.dynamodb.DynamoDBLocalKeys._
 
 object BuildSettings {
 
-  lazy val publishSettings = bintraySettings ++ Seq(
-    publishMavenStyle := true,
-    publishArtifact := true,
-    publishArtifact in Test := false,
+  lazy val buildSettings = Seq[Setting[_]](
+    organization := "com.snowplowanalytics",
+    name := "snowplow-events-manifest",
+    description := "Identifying duplicate events across batches",
+    scalaVersion := "2.13.9",
+    crossScalaVersions := Seq("2.13.9", "2.12.17"),
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
-    bintrayOrganization := Some("snowplow"),
-    bintrayRepository := "snowplow-maven",
+    Test / parallelExecution := false, // possible race bugs,
+    scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"),
+    javacOptions := Seq(
+      "-source", "1.11",
+      "-target", "1.11"
+    )
+  )
+
+
+  // Bintray publishing settings
+  lazy val publishSettings = Seq[Setting[_]](
+    publishArtifact := true,
+    Test / publishArtifact := false,
     pomIncludeRepository := { _ => false },
-    homepage := Some(url("https://github.com/snowplow-incubator/snowplow-events-manifest")),
-    scmInfo := Some(ScmInfo(url("https://github.com/snowplow-incubator/snowplow-events-manifest"),
-      "scm:git@github.com:snowplow-incubator/snowplow-events-manifest.git")),
-    pomExtra := (
-      <developers>
-        <developer>
-          <name>Snowplow Analytics Ltd</name>
-          <email>support@snowplowanalytics.com</email>
-          <organization>Snowplow Analytics Ltd</organization>
-          <organizationUrl>http://snowplowanalytics.com</organizationUrl>
-        </developer>
-      </developers>)
-  )
-
-  lazy val javaCompilerOptions = Seq(
-    "-source", "1.11",
-    "-target", "1.11"
-  )
-
-  lazy val coverageSettings = Seq(
-    coverageMinimum := 90
+    homepage := Some(url("http://snowplowanalytics.com")),
+    ThisBuild / dynverVTagPrefix := false, // Otherwise git tags required to have v-prefix
+    developers := List(
+      Developer(
+        "Snowplow Analytics Ltd",
+        "Snowplow Analytics Ltd",
+        "support@snowplowanalytics.com",
+        url("https://snowplowanalytics.com")
+      )
+    )
   )
 
   lazy val dynamoDbSettings = Seq(

@@ -13,14 +13,6 @@
 lazy val root = project
   .in(file("."))
   .settings(
-    organization := "com.snowplowanalytics",
-    name := "snowplow-events-manifest",
-    version := "0.3.0",
-    description := "Identifying duplicate events across batches",
-    scalaVersion := "2.12.8",
-    crossScalaVersions := Seq("2.12.8", "2.13.2"),
-    scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"),
-    javacOptions := BuildSettings.javaCompilerOptions,
     libraryDependencies ++= Seq(
       Dependencies.igluClient,
       Dependencies.dynamodb,
@@ -29,6 +21,6 @@ lazy val root = project
       Dependencies.specs2
     )
   )
+  .settings(BuildSettings.buildSettings)
   .settings(BuildSettings.publishSettings)
-  .settings(BuildSettings.coverageSettings)
   .settings(BuildSettings.dynamoDbSettings)
