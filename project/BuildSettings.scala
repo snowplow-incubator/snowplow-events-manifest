@@ -19,20 +19,31 @@ import sbtdynver.DynVerPlugin.autoImport._
 // DynamoDB Local
 import com.localytics.sbt.dynamodb.DynamoDBLocalKeys._
 
+// tpolecat
+import org.typelevel.scalacoptions.ScalacOptions
+import org.typelevel.sbt.tpolecat.TpolecatPlugin.autoImport._
+
+
+
 object BuildSettings {
 
   lazy val buildSettings = Seq[Setting[_]](
     organization := "com.snowplowanalytics",
     name := "snowplow-events-manifest",
     description := "Identifying duplicate events across batches",
-    scalaVersion := "2.13.9",
-    crossScalaVersions := Seq("2.13.9", "2.12.17"),
+    scalaVersion := "2.13.18",
+    crossScalaVersions := Seq("2.13.18", "2.12.21"),
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
-    Test / parallelExecution := false, // possible race bugs,
-    scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"),
+    Test / parallelExecution := false, // possible race bugs
+    // specs2 mutable DSL (sequential / should / in) works via side effects;
+    // the returned Fragment/Arguments values are intentionally discarded.
+    // -Wnonunit-statement is a Scala 2.13-only flag; suppressing it here is
+    // safe because the same pattern is not flagged by the 2.12 equivalent.
+    Test / tpolecatExcludeOptions += ScalacOptions.warnNonUnitStatement,
+    Compile / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"),
     javacOptions := Seq(
-      "-source", "1.11",
-      "-target", "1.11"
+      "-source", "17",
+      "-target", "17"
     )
   )
 
@@ -55,9 +66,9 @@ object BuildSettings {
   )
 
   lazy val dynamoDbSettings = Seq(
-    startDynamoDBLocal := startDynamoDBLocal.dependsOn(compile in Test).value,
-    test in Test := (test in Test).dependsOn(startDynamoDBLocal).value,
-    testOnly in Test := (testOnly in Test).dependsOn(startDynamoDBLocal).evaluated,
-    testOptions in Test += dynamoDBLocalTestCleanup.value
+    startDynamoDBLocal := startDynamoDBLocal.dependsOn(Test / compile).value,
+    Test / test := (Test / test).dependsOn(startDynamoDBLocal).value,
+    Test / testOnly := (Test / testOnly).dependsOn(startDynamoDBLocal).evaluated,
+    Test / testOptions += dynamoDBLocalTestCleanup.value
   )
 }

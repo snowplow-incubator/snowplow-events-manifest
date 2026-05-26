@@ -103,7 +103,7 @@ object DynamoDbManifest {
     }
     result match {
       case Some(description) =>
-        waitForActive(client, name, description)
+        val _ = waitForActive(client, name, description)
         name
       case None =>
         throw new IllegalStateException("Amazon DynamoDB table for event manifest is unavailable")
