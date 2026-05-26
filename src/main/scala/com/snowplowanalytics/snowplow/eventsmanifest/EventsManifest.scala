@@ -18,9 +18,10 @@ import java.util.UUID
 // Scala
 import scala.util.control.NonFatal
 
-// AWS
-import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
+// AWS SDK v2
+import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 
 // This library
 import com.snowplowanalytics.snowplow.eventsmanifest.EventsManifestConfig.DynamoDb.Credentials
@@ -63,16 +64,14 @@ object EventsManifest {
         try {
           val client = auth match {
             case Some(Credentials(accessKeyId, secretAccessKey)) =>
-              val credentials = new BasicAWSCredentials(accessKeyId, secretAccessKey)
-              AmazonDynamoDBClientBuilder
-                .standard()
-                .withRegion(awsRegion)
-                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+              val credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey)
+              DynamoDbClient.builder()
+                .region(Region.of(awsRegion))
+                .credentialsProvider(StaticCredentialsProvider.create(credentials))
                 .build()
             case None =>
-              AmazonDynamoDBClientBuilder
-                .standard()
-                .withRegion(awsRegion)
+              DynamoDbClient.builder()
+                .region(Region.of(awsRegion))
                 .build()
           }
           val table = DynamoDbManifest.checkTable(client, tableName)

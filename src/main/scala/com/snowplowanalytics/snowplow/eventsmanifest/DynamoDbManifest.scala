@@ -19,10 +19,9 @@ import java.util.UUID
 // Scala
 import scala.jdk.CollectionConverters._
 
-// AWS
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
-import com.amazonaws.services.dynamodbv2.document.Table
-import com.amazonaws.services.dynamodbv2.model._
+// AWS SDK v2
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
+import software.amazon.awssdk.services.dynamodb.model._
 
 /**
   * Wrapper for a DynamoDB client that handles interactions with the events manifest table.
@@ -34,7 +33,7 @@ import com.amazonaws.services.dynamodbv2.model._
   * @param client AWS DynamoDB client object
   * @param table  AWS DynamoDB table name
   */
-case class DynamoDbManifest(client: AmazonDynamoDB, table: String) extends EventsManifest {
+case class DynamoDbManifest(client: DynamoDbClient, table: String) extends EventsManifest {
 
   import DynamoDbManifest._
 
@@ -50,14 +49,20 @@ case class DynamoDbManifest(client: AmazonDynamoDB, table: String) extends Event
   def put(eventId: UUID, eventFingerprint: String, etlTstamp: Instant): Boolean = {
     val etl: Int = (etlTstamp.toEpochMilli / 1000).toInt
     val ttl = etl + 180 * 24 * 60 * 60
-    val putRequest = putRequestDummy
-      .withExpressionAttributeValues(Map(":tst" -> new AttributeValue().withN(etl.toString)).asJava)
-      .withItem(attributeValues(List(
-        EventIdColumn -> eventId.toString,
+    val putRequest = PutItemRequest.builder()
+      .tableName(table)
+      .conditionExpression(
+        s"(attribute_not_exists($EventIdColumn) AND attribute_not_exists($FingerprintColumn)) OR $EtlTstampColumn = :tst"
+      )
+      .expressionAttributeValues(
+        Map(":tst" -> AttributeValue.builder().n(etl.toString).build()).asJava
+      )
+      .item(attributeValues(List(
+        EventIdColumn     -> eventId.toString,
         FingerprintColumn -> eventFingerprint,
-        EtlTstampColumn -> etl,
-        TimeToLiveColumn -> ttl)
-      ))
+        EtlTstampColumn   -> etl,
+        TimeToLiveColumn  -> ttl)))
+      .build()
 
     try {
       client.putItem(putRequest)
@@ -66,25 +71,14 @@ case class DynamoDbManifest(client: AmazonDynamoDB, table: String) extends Event
       case _: ConditionalCheckFailedException => false
     }
   }
-
-  /**
-    * A conditional write request that will pass if both `eventId` AND `fingerprint` are not present in the table,
-    * effectively meaning that only non-duplicates will be written.
-    *
-    * Dupes can still pass if an event's `etl_timestamp` matches, effectively meaning that a previous shred was
-    * interrupted and an event is being overwritten.
-    */
-  val putRequestDummy: PutItemRequest = new PutItemRequest()
-    .withTableName(table)
-    .withConditionExpression(s"(attribute_not_exists($EventIdColumn) AND attribute_not_exists($FingerprintColumn)) OR $EtlTstampColumn = :tst")
 }
 
 object DynamoDbManifest {
 
-  val EventIdColumn = "eventId"
+  val EventIdColumn     = "eventId"
   val FingerprintColumn = "fingerprint"
-  val EtlTstampColumn = "etlTime"
-  val TimeToLiveColumn = "ttl"
+  val EtlTstampColumn   = "etlTime"
+  val TimeToLiveColumn  = "ttl"
 
   /**
     * Check that a table is available (block for some time if necessary).
@@ -94,16 +88,16 @@ object DynamoDbManifest {
     * @return either the same table name or an exception
     */
   @throws[IllegalStateException]
-  def checkTable(client: AmazonDynamoDB, name: String): String = {
-    val request = new DescribeTableRequest().withTableName(name)
+  def checkTable(client: DynamoDbClient, name: String): String = {
+    val request = DescribeTableRequest.builder().tableName(name).build()
     val result = try {
-      Option(client.describeTable(request).getTable)
+      Option(client.describeTable(request).table())
     } catch {
       case _: ResourceNotFoundException => None
     }
     result match {
-      case Some(description) =>
-        val _ = waitForActive(client, name, description)
+      case Some(_) =>
+        val _ = waitForActive(client, name)
         name
       case None =>
         throw new IllegalStateException("Amazon DynamoDB table for event manifest is unavailable")
@@ -112,7 +106,7 @@ object DynamoDbManifest {
 
   /**
     * Create a DynamoDB table with indices designed to store event manifests.
-    * Unlike `DynamoDB#createTable`, this is a blocking operation.
+    * Unlike the underlying `createTable` API call, this is a blocking operation.
     *
     * @param client        AWS DynamoDB client with an established connection
     * @param name          DynamoDB table name
@@ -120,41 +114,52 @@ object DynamoDbManifest {
     * @param writeCapacity DynamoDB writes/second
     * @return table description object
     */
-  def createTable(client: AmazonDynamoDB, name: String, readCapacity: Option[Long], writeCapacity: Option[Long]): TableDescription = {
+  def createTable(client: DynamoDbClient, name: String, readCapacity: Option[Long], writeCapacity: Option[Long]): TableDescription = {
     val pks = List(
-      new AttributeDefinition(EventIdColumn, ScalarAttributeType.S),
-      new AttributeDefinition(FingerprintColumn, ScalarAttributeType.S))
+      AttributeDefinition.builder().attributeName(EventIdColumn).attributeType(ScalarAttributeType.S).build(),
+      AttributeDefinition.builder().attributeName(FingerprintColumn).attributeType(ScalarAttributeType.S).build()
+    )
     val schema = List(
-      new KeySchemaElement(EventIdColumn, KeyType.HASH),
-      new KeySchemaElement(FingerprintColumn, KeyType.RANGE))
+      KeySchemaElement.builder().attributeName(EventIdColumn).keyType(KeyType.HASH).build(),
+      KeySchemaElement.builder().attributeName(FingerprintColumn).keyType(KeyType.RANGE).build()
+    )
 
-    val readCapacityUnits: Long = readCapacity.getOrElse(20L)
+    val readCapacityUnits: Long  = readCapacity.getOrElse(20L)
     val writeCapacityUnits: Long = writeCapacity.getOrElse(100L)
-    val request = new CreateTableRequest()
-      .withTableName(name)
-      .withAttributeDefinitions(pks.asJava)
-      .withKeySchema(schema.asJava)
-      .withProvisionedThroughput(new ProvisionedThroughput(readCapacityUnits, writeCapacityUnits))
-    val response = client.createTable(request)
+    val request = CreateTableRequest.builder()
+      .tableName(name)
+      .attributeDefinitions(pks.asJava)
+      .keySchema(schema.asJava)
+      .provisionedThroughput(
+        ProvisionedThroughput.builder()
+          .readCapacityUnits(readCapacityUnits)
+          .writeCapacityUnits(writeCapacityUnits)
+          .build()
+      )
+      .build()
+    client.createTable(request)
 
-    val description = waitForActive(client, name, response.getTableDescription)
-    val ttlSpecification = new TimeToLiveSpecification()
-      .withAttributeName(TimeToLiveColumn)
-      .withEnabled(true)
-    val ttlRequest = new UpdateTimeToLiveRequest()
-      .withTableName(name)
-      .withTimeToLiveSpecification(ttlSpecification)
-    client.updateTimeToLive(ttlRequest) // Update when the table is active
+    val description = waitForActive(client, name)
+    val ttlSpecification = TimeToLiveSpecification.builder()
+      .attributeName(TimeToLiveColumn)
+      .enabled(true)
+      .build()
+    val ttlRequest = UpdateTimeToLiveRequest.builder()
+      .tableName(name)
+      .timeToLiveSpecification(ttlSpecification)
+      .build()
+    client.updateTimeToLive(ttlRequest)
 
     description
   }
 
   /**
-    * Blocking method to reassure that a table is available for read.
+    * Blocking method to wait until a table is in ACTIVE state.
     */
-  @throws[ResourceNotFoundException]
-  def waitForActive(client: AmazonDynamoDB, name: String, description: TableDescription): TableDescription = {
-    new Table(client, name, description).waitForActive()
+  def waitForActive(client: DynamoDbClient, name: String): TableDescription = {
+    val describeRequest = DescribeTableRequest.builder().tableName(name).build()
+    client.waiter().waitUntilTableExists(describeRequest)
+    client.describeTable(describeRequest).table()
   }
 
   /**
@@ -173,11 +178,10 @@ object DynamoDbManifest {
     * Convert **only** strings and numbers to DynamoDB-compatible attribute data.
     */
   def asAttributeValue(v: Any): AttributeValue = {
-    val value = new AttributeValue
     v match {
-      case s: String => value.withS(s)
-      case n: java.lang.Number => value.withN(n.toString)
-      case _ => null
+      case s: String           => AttributeValue.builder().s(s).build()
+      case n: java.lang.Number => AttributeValue.builder().n(n.toString).build()
+      case _                   => null
     }
   }
 }

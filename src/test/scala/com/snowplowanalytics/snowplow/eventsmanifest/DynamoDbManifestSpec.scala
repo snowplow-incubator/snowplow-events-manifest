@@ -12,6 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.eventsmanifest
 
+import java.net.URI
 import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -19,11 +20,11 @@ import java.util.UUID
 // scala
 import scala.jdk.CollectionConverters._
 
-// AWS
-import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.model.{AttributeValue, ScanRequest, ScanResult}
-import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBuilder}
+// AWS SDK v2
+import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCredentialsProvider}
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
+import software.amazon.awssdk.services.dynamodb.model.{AttributeValue, ScanRequest}
 
 // Specs2
 import org.specs2.mutable.Specification
@@ -41,11 +42,11 @@ class DynamoDbManifestSpec extends Specification {
     ZonedDateTime.parse(str, TstampFormatter).toInstant
 
   val config = DynamoDb(None, "local", Some(DynamoDb.Credentials("fakeAccessKeyId", "fakeSecretAccessKey")), "us-west-1", "snowplow-integration-test-crossbatch-dedupe")
-  val credentials = new BasicAWSCredentials(config.auth.get.accessKeyId, config.auth.get.secretAccessKey)
-  val client: AmazonDynamoDB = AmazonDynamoDBClientBuilder
-    .standard()
-    .withEndpointConfiguration(new EndpointConfiguration("http://localhost:8000", config.awsRegion))
-    .withCredentials(new AWSStaticCredentialsProvider(credentials))
+  val credentials = AwsBasicCredentials.create(config.auth.get.accessKeyId, config.auth.get.secretAccessKey)
+  val client: DynamoDbClient = DynamoDbClient.builder()
+    .endpointOverride(URI.create("http://localhost:8000"))
+    .region(Region.of(config.awsRegion))
+    .credentialsProvider(StaticCredentialsProvider.create(credentials))
     .build()
 
   sequential
@@ -99,32 +100,36 @@ class DynamoDbManifestSpec extends Specification {
     "correctly populate the manifest" in {
       val expected = List(
         attributeValues(List(
-          EventIdColumn -> "d7f5fa2f-3b3a-4c97-a030-8e05d9f40b0a",
+          EventIdColumn     -> "d7f5fa2f-3b3a-4c97-a030-8e05d9f40b0a",
           FingerprintColumn -> "AADCE520E20C2899F4CED228A79A3083",
-          EtlTstampColumn -> 1485388945,
-          TimeToLiveColumn -> 1500940945)
+          EtlTstampColumn   -> 1485388945,
+          TimeToLiveColumn  -> 1500940945)
         ),
         attributeValues(List(
-          EventIdColumn -> "c6ef3124-b53a-4b13-a233-0088f79dcbcb",
+          EventIdColumn     -> "c6ef3124-b53a-4b13-a233-0088f79dcbcb",
           FingerprintColumn -> "15A65BB354B1265A775FC3C60AAD5E58",
-          EtlTstampColumn -> 1485388945,
-          TimeToLiveColumn -> 1500940945)
+          EtlTstampColumn   -> 1485388945,
+          TimeToLiveColumn  -> 1500940945)
         ),
         attributeValues(List(
-          EventIdColumn -> "c6ef3124-b53a-4b13-a233-0088f79dcbcb",
+          EventIdColumn     -> "c6ef3124-b53a-4b13-a233-0088f79dcbcb",
           FingerprintColumn -> "AADCE520E20C2899F4CED228A79A3083",
-          EtlTstampColumn -> 1485388885,
-          TimeToLiveColumn -> 1500940885)
+          EtlTstampColumn   -> 1485388885,
+          TimeToLiveColumn  -> 1500940885)
         )
       ).asJava
-      val request = new ScanRequest().withTableName(config.dynamodbTable)
-      val response: ScanResult = client.scan(request)
-      response.getItems mustEqual expected
+      val request = ScanRequest.builder().tableName(config.dynamodbTable).build()
+      val response = client.scan(request)
+      response.items() mustEqual expected
     }
 
     "convert list arguments into DynamoDB-compatible hashmaps" in {
       val attributes = List(("1", 1), ("2", "2"), ("3", true))
-      val expected = Map("1" -> new AttributeValue().withN("1"), "2" -> new AttributeValue().withS("2"), "3" -> null).asJava
+      val expected = Map(
+        "1" -> AttributeValue.builder().n("1").build(),
+        "2" -> AttributeValue.builder().s("2").build(),
+        "3" -> null
+      ).asJava
       DynamoDbManifest.attributeValues(attributes) mustEqual expected
     }
   }
